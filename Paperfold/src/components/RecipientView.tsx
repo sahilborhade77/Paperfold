@@ -15,6 +15,7 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   const [isPlaying, setIsPlaying] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showExpiryPill, setShowExpiryPill] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -22,6 +23,13 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
     if (audioRef.current) {
       audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     }
+
+    // Hide expiry pill after 5 seconds
+    setShowExpiryPill(true);
+    const timer = setTimeout(() => {
+      setShowExpiryPill(false);
+    }, 5000);
+    return () => clearTimeout(timer);
   }, [cardData.id]);
 
   const toggleAudio = () => {
@@ -84,10 +92,12 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
       </div>
 
       {/* Floating Whisper Notification Pill */}
-      <div className="mb-6 mx-auto max-w-md bg-[#FFB7B2]/30 border border-[#FFB7B2] text-[#5E1E24] px-4 py-2 rounded-full text-center text-xs font-body-md whisper-fade flex items-center justify-center gap-2">
-        <span className="material-symbols-outlined text-sm">schedule</span>
-        <span>This card will whisper its last words in {cardData.expiresInDays || 7} days.</span>
-      </div>
+      {showExpiryPill && (
+        <div className="mb-6 mx-auto max-w-md bg-[#FFB7B2]/30 border border-[#FFB7B2] text-[#5E1E24] px-4 py-2 rounded-full text-center text-xs font-body-md whisper-fade flex items-center justify-center gap-2 animate-pulse">
+          <span className="material-symbols-outlined text-sm">schedule</span>
+          <span>This card will whisper its last words in {cardData.expiresInDays || 7} days.</span>
+        </div>
+      )}
 
       {/* Main Recipient Card Container */}
       <div className="canvas-bg p-6 md:p-12 rounded-3xl border-2 border-[#dcc0c0]/40 shadow-2xl relative overflow-hidden flex flex-col items-center">

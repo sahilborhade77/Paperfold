@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CardData } from '../types';
+import { cardService } from '../services/cardService';
 
 interface WizardSendViewProps {
   cardData: CardData;
@@ -15,12 +16,29 @@ export const WizardSendView: React.FC<WizardSendViewProps> = ({
   onBack,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCopyLink = () => {
-    const url = `${window.location.origin}?cardId=${cardData.id}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
+  const handleCopyLink = async () => {
+    setError(null);
+    setLoadingStatus('Initializing...');
+    try {
+      const cardId = await cardService.createCard(cardData, (status) => {
+        setLoadingStatus(status);
+      });
+      const url = `${window.location.origin}/card/${cardId}`;
+      await navigator.clipboard.writeText(url);
+      setLoadingStatus('Link copied.');
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+        setLoadingStatus(null);
+      }, 3000);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'Failed to save card and copy link.');
+      setLoadingStatus(null);
+    }
   };
 
   return (
@@ -165,6 +183,24 @@ export const WizardSendView: React.FC<WizardSendViewProps> = ({
         </div>
       </div>
 
+      {/* Loading / Error States */}
+      {(loadingStatus || error) && (
+        <div className="mt-6 p-4 rounded-xl text-center bg-white border border-[#dcc0c0]/30 shadow-xs max-w-md mx-auto">
+          {loadingStatus && (
+            <p className="text-xs font-label-caps text-[#6d1824] animate-pulse flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+              {loadingStatus}
+            </p>
+          )}
+          {error && (
+            <p className="text-xs font-body-md text-[#ba1a1a] flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Copy / Share Actions & Next Button */}
       <div className="mt-8 flex flex-col sm:flex-row justify-between items-center gap-4 bg-[#fdf9f4] p-4 rounded-full shadow-lg border border-[#dcc0c0]/30">
         <button
@@ -178,7 +214,8 @@ export const WizardSendView: React.FC<WizardSendViewProps> = ({
         <div className="flex gap-3">
           <button
             onClick={handleCopyLink}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#f7f3ee] text-[#5E1E24] rounded-full font-label-caps text-xs tracking-wider border border-[#dcc0c0] hover:bg-[#ebe8e3] transition-all cursor-pointer"
+            disabled={loadingStatus !== null}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#f7f3ee] text-[#5E1E24] rounded-full font-label-caps text-xs tracking-wider border border-[#dcc0c0] hover:bg-[#ebe8e3] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-sm">
               {copied ? 'check' : 'link'}

@@ -25,8 +25,10 @@ Deploy the Paperfold frontend to Vercel and build a Supabase backend for persist
 - Add or update the Vercel config if needed, but Vercel can auto-detect the Vite app.
 - Add environment variables in Vercel:
   - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_ANON_KEY`
-  - `VITE_SUPABASE_SERVICE_ROLE_KEY` (only for server-side functions, not frontend)
+  - `VITE_SUPABASE_ANON_KEY` (public-facing, safe for frontend use)
+  - `VITE_SUPABASE_SERVICE_ROLE_KEY` (only for server-side functions, never expose in frontend)
+
+> Note: The Supabase anon public key is intended for client-side usage and can be stored as a Vercel secret. Do not hardcode the actual key in source files or commit it to GitHub.
 
 ### 2. Add a backend layer using Supabase
 - Use Supabase Functions or edge functions for any server-side logic.
@@ -64,6 +66,20 @@ Create tables such as:
 
 ### 5. Integrate the frontend with Supabase
 - Replace `localStorage` persistence with backend API calls.
+- Create a Supabase client helper in `src/supabase.ts`:
+  ```ts
+  import { createClient } from '@supabase/supabase-js';
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase env vars are not set. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+  }
+
+  export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  ```
+- Use the helper in your app or API code to initialize Supabase.
 - Example flows:
   - Save draft: POST `/api/cards`
   - Update draft: PUT `/api/cards/:id`
