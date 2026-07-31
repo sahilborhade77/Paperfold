@@ -1,0 +1,6 @@
+{
+  "name": "Paperfold",
+  "description": "Hand-crafted digital letters and melody cards with tactile paper aesthetic.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
