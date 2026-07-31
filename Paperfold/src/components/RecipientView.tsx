@@ -12,18 +12,14 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   onEditCard,
   onSaveToLibrary,
 }) => {
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showExpiryPill, setShowExpiryPill] = useState(true);
+  const [isOpened, setIsOpened] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Attempt auto play
-    if (audioRef.current) {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-    }
-
     // Hide expiry pill after 5 seconds
     setShowExpiryPill(true);
     const timer = setTimeout(() => {
@@ -31,6 +27,21 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
     }, 5000);
     return () => clearTimeout(timer);
   }, [cardData.id]);
+
+  const handleOpen = () => {
+    setIsOpened(true);
+    // Tiny delay to ensure browser register interaction before play call
+    setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.play()
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn('Autoplay blocked:', err);
+            setIsPlaying(false);
+          });
+      }
+    }, 50);
+  };
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
@@ -47,6 +58,43 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
+
+  if (!isOpened) {
+    return (
+      <main className="flex-grow pt-24 pb-36 px-4 flex flex-col items-center justify-center max-w-lg mx-auto w-full">
+        {/* Hidden Audio Player so it is ready in the DOM */}
+        <audio
+          ref={audioRef}
+          src={cardData.song.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3'}
+          loop
+        />
+        
+        <div className="bg-[#fffcf9] border border-[#dcc0c0]/50 shadow-2xl rounded-2xl p-8 text-center space-y-6 w-full deckled-edge transition-all duration-300 hover:scale-[1.02]">
+          <div className="w-20 h-20 mx-auto bg-[#FFB7B2]/30 rounded-full flex items-center justify-center animate-bounce">
+            <span className="material-symbols-outlined text-4xl text-[#6d1824]">drafts</span>
+          </div>
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold font-label-caps text-[#A5A58D] uppercase tracking-widest block">
+              You've Received a Letter
+            </span>
+            <h2 className="text-2xl font-bold font-headline-md text-[#5E1E24]">
+              {cardData.senderName ? `From ${cardData.senderName}` : 'A Message for You'}
+            </h2>
+            <p className="text-xs font-body-md text-[#564242]">
+              Open to read the custom letter and listen to the attached melody.
+            </p>
+          </div>
+          <button
+            onClick={handleOpen}
+            className="w-full py-3 bg-[#6d1824] hover:bg-[#5E1E24] text-white rounded-full font-label-caps text-xs tracking-wider shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-sm">mail</span>
+            Open Letter
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-grow pt-20 pb-36 px-4 md:px-8 max-w-4xl mx-auto w-full relative">
