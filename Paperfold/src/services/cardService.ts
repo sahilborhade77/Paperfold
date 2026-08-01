@@ -2,6 +2,27 @@ import { supabase } from '../lib/supabase';
 import { CardData, Song } from '../types';
 
 /**
+ * Promise wrapper to add a timeout to any promise
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 20000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Request timed out after 20 seconds. Please check your connection.'));
+    }, timeoutMs);
+    promise.then(
+      (res) => {
+        clearTimeout(timer);
+        resolve(res);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+/**
  * Utility to convert data URLs or blob URLs to a Blob
  */
 async function urlToBlob(url: string): Promise<Blob> {
@@ -20,20 +41,25 @@ async function uploadToBucket(
 ): Promise<string> {
   if (!urlOrData) return '';
 
-  // If it's already a public Supabase URL or external URL, check if we need to upload it
+  // If it's already a public Supabase URL, don't re-upload
+  if (urlOrData.includes('.supabase.co/storage/v1/object/public/')) {
+    return urlOrData;
+  }
+
+  // If it's an external URL (already hosted), check if we need to upload it
   if (urlOrData.startsWith('http') && !urlOrData.startsWith('blob:')) {
-    // If it's a preset URL, we can attempt to fetch it and upload it so it's hosted in the user's bucket.
-    // If CORS prevents fetching, we fall back to the original URL.
     try {
       const blob = await urlToBlob(urlOrData);
       const filename = `${prefix}_${Date.now()}.${defaultExtension}`;
-      const { data, error } = await supabase.storage
+      const uploadPromise = supabase.storage
         .from(bucketName)
         .upload(filename, blob, {
           contentType: blob.type || undefined,
           cacheControl: '3600',
           upsert: false,
         });
+      
+      const { data, error } = await withTimeout(uploadPromise);
 
       if (error) throw error;
       const { data: publicUrlData } = supabase.storage
@@ -58,13 +84,15 @@ async function uploadToBucket(
     }
     const filename = `${prefix}_${Date.now()}.${extension}`;
 
-    const { data, error } = await supabase.storage
+    const uploadPromise = supabase.storage
       .from(bucketName)
       .upload(filename, blob, {
         contentType: blob.type || undefined,
         cacheControl: '3600',
         upsert: false,
       });
+
+    const { data, error } = await withTimeout(uploadPromise);
 
     if (error) throw error;
 
@@ -100,18 +128,14 @@ export const cardService = {
     card: CardData,
     onProgress?: (status: string) => void
   ): Promise<string> {
-    // Step 1: Upload photo
-    if (onProgress) onProgress('Uploading image...');
-    const uploadedPhotoUrl = await this.uploadPhoto(card.photoUrl);
+    // Parallelize uploads for photo and audio
+    if (onProgress) onProgress('Securing media assets...');
+    const [uploadedPhotoUrl, uploadedMusicUrl] = await Promise.all([
+      this.uploadPhoto(card.photoUrl),
+      card.song.audioUrl ? this.uploadMusic(card.song.audioUrl) : Promise.resolve(''),
+    ]);
 
-    // Step 2: Upload music
-    let uploadedMusicUrl = card.song.audioUrl || '';
-    if (uploadedMusicUrl) {
-      if (onProgress) onProgress('Uploading music...');
-      uploadedMusicUrl = await this.uploadMusic(uploadedMusicUrl);
-    }
-
-    // Step 3: Serialize other visual and custom fields into "theme" JSON
+    // Serialize other visual and custom fields into "theme" JSON
     if (onProgress) onProgress('Saving card...');
     const themePayload = {
       occasion: card.occasion,
@@ -131,22 +155,26 @@ export const cardService = {
         artist: card.song.artist,
         duration: card.song.duration,
         coverUrl: card.song.coverUrl,
-        audioUrl: uploadedMusicUrl, // store the uploaded bucket URL inside the song object
+        audioUrl: uploadedMusicUrl,
+        songType: card.song.songType || 'upload',
+        youtubeVideoId: card.song.youtubeVideoId || '',
       },
     };
 
-    // Step 4: Insert card into Postgres table
-    const { data, error } = await supabase
+    // Insert card into Postgres table
+    const insertPromise = supabase
       .from('cards')
       .insert({
         title: card.title,
         message: card.message,
         image_url: uploadedPhotoUrl,
         music_url: uploadedMusicUrl,
-        theme: JSON.stringify(themePayload),
+        theme: themePayload,
       })
       .select('id')
       .single();
+
+    const { data, error } = await withTimeout(insertPromise);
 
     if (error) {
       console.error('Error inserting card to database:', error);
@@ -204,13 +232,19 @@ export const cardService = {
       stickers: Array.isArray(themeObj.stickers) ? themeObj.stickers : [],
       createdAt: data.created_at || new Date().toISOString(),
       expiresInDays: typeof themeObj.expiresInDays === 'number' ? themeObj.expiresInDays : 7,
-      song: themeObj.song || {
-        id: 'external-song',
-        title: 'Song',
-        artist: 'Unknown Artist',
-        duration: '',
-        coverUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCRHFzEa21WAv9_4Qp_f2I0o0soOKQexMtHmQT8G8xX92OsWC7-T6I_-VnMIcQCgJwkqP1HwEQlfVfoCm4mfRvjfAh9TqL5ElndVtC_uZPE5GLEBkxE-8WZq87tPMZADAjIDB2Ln74bbKKjHiLhY63LSIt_KaploiNtJ9lscS70LIhvqHjBkzuFpp-82qO1LO9I7qGP0n_rqeXB5AWp7aaAdJO2PoW-dU-I6PmQSUdgvW2FUyVQXxQs',
-        audioUrl: data.music_url || '',
+      song: {
+        id: themeObj.song?.id || 'external-song',
+        title: themeObj.song?.title || 'Song',
+        artist: themeObj.song?.artist || 'Unknown Artist',
+        duration: themeObj.song?.duration || '',
+        coverUrl:
+          themeObj.song?.coverUrl ||
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuCRHFzEa21WAv9_4Qp_f2I0o0soOKQexMtHmQT8G8xX92OsWC7-T6I_-VnMIcQCgJwkqP1HwEQlfVfoCm4mfRvjfAh9TqL5ElndVtC_uZPE5GLEBkxE-8WZq87tPMZADAjIDB2Ln74bbKKjHiLhY63LSIt_KaploiNtJ9lscS70LIhvqHjBkzuFpp-82qO1LO9I7qGP0n_rqeXB5AWp7aaAdJO2PoW-dU-I6PmQSUdgvW2FUyVQXxQs',
+        audioUrl: themeObj.song?.audioUrl || data.music_url || '',
+        songType:
+          themeObj.song?.songType ||
+          (themeObj.song?.youtubeVideoId ? 'youtube' : 'upload'),
+        youtubeVideoId: themeObj.song?.youtubeVideoId || '',
       },
     };
 

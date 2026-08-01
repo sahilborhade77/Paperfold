@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import { AppView, CardData, TemplateCard, Song } from './types';
-import { INITIAL_CARD_DATA } from './data';
+import { INITIAL_CARD_DATA, getFormattedLocalDate } from './data';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { BottomNav } from './components/BottomNav';
@@ -147,6 +147,7 @@ export function App() {
       headline: template.defaultHeadline || template.title,
       message: template.defaultMessage || INITIAL_CARD_DATA.message,
       song: template.defaultSong,
+      dateStr: getFormattedLocalDate(),
       createdAt: new Date().toISOString(),
     };
     setActiveCard(newCard);
@@ -161,6 +162,8 @@ export function App() {
       id: `card-${Date.now()}`,
       title: 'Untitled Letter',
       occasion: 'General',
+      dateStr: getFormattedLocalDate(),
+      song: INITIAL_CARD_DATA.song,
       createdAt: new Date().toISOString(),
     };
     setActiveCard(newCard);

@@ -28,9 +28,10 @@ export const Header: React.FC<HeaderProps> = ({
         )}
         <h1
           onClick={() => onNavigate('templates')}
-          className="text-2xl font-bold font-headline-md text-[#5E1E24] cursor-pointer hover:opacity-80 transition-opacity"
+          className="text-2xl font-bold font-headline-md text-[#5E1E24] cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
         >
-          Paperfold
+          <img src="/logo.png" alt="Paperfold Logo" className="w-8 h-8 object-contain" />
+          <span>Paperfold</span>
         </h1>
       </div>
 

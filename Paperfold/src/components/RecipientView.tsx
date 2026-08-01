@@ -18,6 +18,9 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   const [showExpiryPill, setShowExpiryPill] = useState(true);
   const [isOpened, setIsOpened] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isYouTubeSong =
+    cardData.song.songType === 'youtube' && Boolean(cardData.song.youtubeVideoId);
+  const hasMelody = isYouTubeSong || Boolean(cardData.song.audioUrl);
 
   useEffect(() => {
     // Hide expiry pill after 5 seconds
@@ -30,6 +33,10 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
 
   const handleOpen = () => {
     setIsOpened(true);
+    if (isYouTubeSong) {
+      return;
+    }
+
     // Tiny delay to ensure browser register interaction before play call
     setTimeout(() => {
       if (audioRef.current) {
@@ -44,7 +51,7 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   };
 
   const toggleAudio = () => {
-    if (!audioRef.current) return;
+    if (isYouTubeSong || !audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -63,11 +70,13 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
     return (
       <main className="flex-grow pt-24 pb-36 px-4 flex flex-col items-center justify-center max-w-lg mx-auto w-full">
         {/* Hidden Audio Player so it is ready in the DOM */}
-        <audio
-          ref={audioRef}
-          src={cardData.song.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3'}
-          loop
-        />
+        {!isYouTubeSong && cardData.song.audioUrl && (
+          <audio
+            ref={audioRef}
+            src={cardData.song.audioUrl}
+            loop
+          />
+        )}
         
         <div className="bg-[#fffcf9] border border-[#dcc0c0]/50 shadow-2xl rounded-2xl p-8 text-center space-y-6 w-full deckled-edge transition-all duration-300 hover:scale-[1.02]">
           <div className="w-20 h-20 mx-auto bg-[#FFB7B2]/30 rounded-full flex items-center justify-center animate-bounce">
@@ -99,11 +108,13 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   return (
     <main className="flex-grow pt-20 pb-36 px-4 md:px-8 max-w-4xl mx-auto w-full relative">
       {/* Hidden Audio Player */}
-      <audio
-        ref={audioRef}
-        src={cardData.song.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3'}
-        loop
-      />
+      {!isYouTubeSong && cardData.song.audioUrl && (
+        <audio
+          ref={audioRef}
+          src={cardData.song.audioUrl}
+          loop
+        />
+      )}
 
       {/* Top Banner & Music Controller */}
       <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
@@ -117,26 +128,34 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
         </div>
 
         {/* Music Play / Pause Control Pill */}
-        <button
-          onClick={toggleAudio}
-          className={`flex items-center gap-3 px-5 py-2.5 rounded-full shadow-md transition-all cursor-pointer ${
-            isPlaying ? 'bg-[#5E1E24] text-white' : 'bg-white text-[#5E1E24] border border-[#dcc0c0]'
-          }`}
-        >
-          <div className="w-6 h-6 rounded-full bg-black/30 p-0.5 relative shrink-0">
-            <img
-              src={cardData.song.coverUrl}
-              alt="Song cover"
-              className={`w-full h-full rounded-full object-cover ${isPlaying ? 'vinyl-spin' : ''}`}
-            />
+        {hasMelody ? (
+          <button
+            onClick={toggleAudio}
+            className={`flex items-center gap-3 px-5 py-2.5 rounded-full shadow-md transition-all cursor-pointer ${
+              isPlaying ? 'bg-[#5E1E24] text-white' : 'bg-white text-[#5E1E24] border border-[#dcc0c0]'
+            }`}
+          >
+            <div className="w-6 h-6 rounded-full bg-black/30 p-0.5 relative shrink-0">
+              <img
+                src={cardData.song.coverUrl}
+                alt="Song cover"
+                className={`w-full h-full rounded-full object-cover ${isPlaying ? 'vinyl-spin' : ''}`}
+              />
+            </div>
+            <span className="text-xs font-bold font-headline-md">
+              {isPlaying ? 'Playing Melody' : 'Play Attached Song'}
+            </span>
+            <span className="material-symbols-outlined text-sm">
+              {isPlaying ? 'pause' : 'play_arrow'}
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-white text-[#564242]/50 border border-[#dcc0c0] opacity-50 select-none">
+            <span className="text-xs font-bold font-headline-md">
+              No melody attached
+            </span>
           </div>
-          <span className="text-xs font-bold font-headline-md">
-            {isPlaying ? 'Playing Melody' : 'Play Attached Song'}
-          </span>
-          <span className="material-symbols-outlined text-sm">
-            {isPlaying ? 'pause' : 'play_arrow'}
-          </span>
-        </button>
+        )}
       </div>
 
       {/* Floating Whisper Notification Pill */}
@@ -202,6 +221,12 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
                 ? 'font-script text-3xl'
                 : cardData.fontStyle === 'handwritten'
                 ? 'font-handwritten-note'
+                : cardData.fontStyle === 'elegant'
+                ? 'font-elegant text-2xl'
+                : cardData.fontStyle === 'playful'
+                ? 'font-playful text-3xl'
+                : cardData.fontStyle === 'sans'
+                ? 'font-sans text-lg'
                 : 'font-body-md'
             }`}
           >
@@ -216,6 +241,12 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
                 ? 'font-script text-2xl'
                 : cardData.fontStyle === 'handwritten'
                 ? 'font-handwritten-note text-xl'
+                : cardData.fontStyle === 'elegant'
+                ? 'font-elegant text-xl'
+                : cardData.fontStyle === 'playful'
+                ? 'font-playful text-2xl'
+                : cardData.fontStyle === 'sans'
+                ? 'font-sans text-base'
                 : 'font-body-md'
             }`}
           >
@@ -231,6 +262,12 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
                   ? 'font-script text-2xl'
                   : cardData.fontStyle === 'handwritten'
                   ? 'font-handwritten-note text-xl'
+                  : cardData.fontStyle === 'elegant'
+                  ? 'font-elegant text-xl'
+                  : cardData.fontStyle === 'playful'
+                  ? 'font-playful text-2xl'
+                  : cardData.fontStyle === 'sans'
+                  ? 'font-sans text-base'
                   : 'font-body-md'
               }`}
             >
@@ -239,20 +276,22 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
           </div>
 
           {/* Vinyl Record Footer Badge inside card */}
-          <div className="mt-8 pt-4 border-t border-dashed border-[#dcc0c0]/50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-[#8c2f39]">music_note</span>
-              <span className="text-xs font-headline-md text-[#5E1E24]">
-                <strong>{cardData.song.title}</strong> — {cardData.song.artist}
-              </span>
+          {hasMelody && (
+            <div className="mt-8 pt-4 border-t border-dashed border-[#dcc0c0]/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[#8c2f39]">music_note</span>
+                <span className="text-xs font-headline-md text-[#5E1E24]">
+                  <strong>{cardData.song.title}</strong> — {cardData.song.artist}
+                </span>
+              </div>
+              <button
+                onClick={toggleAudio}
+                className="text-xs font-label-caps text-[#8c2f39] underline cursor-pointer"
+              >
+                {isPlaying ? 'Pause Song' : 'Play Song'}
+              </button>
             </div>
-            <button
-              onClick={toggleAudio}
-              className="text-xs font-label-caps text-[#8c2f39] underline cursor-pointer"
-            >
-              {isPlaying ? 'Pause Song' : 'Play Song'}
-            </button>
-          </div>
+          )}
         </div>
       </div>
 

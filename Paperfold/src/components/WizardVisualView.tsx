@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { cardService } from '../services/cardService';
 
 interface WizardVisualViewProps {
   currentPhotoUrl: string;
@@ -15,6 +16,8 @@ export const WizardVisualView: React.FC<WizardVisualViewProps> = ({
 }) => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -37,13 +40,27 @@ export const WizardVisualView: React.FC<WizardVisualViewProps> = ({
     },
   ];
 
+  const handlePhotoUpload = async (photoDataUrl: string) => {
+    setUploadStatus('uploading');
+    setUploadError(null);
+    try {
+      const uploadedUrl = await cardService.uploadPhoto(photoDataUrl);
+      onUpdatePhoto(uploadedUrl);
+      setUploadStatus('success');
+    } catch (err) {
+      console.error(err);
+      setUploadStatus('error');
+      setUploadError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          onUpdatePhoto(event.target.result as string);
+          handlePhotoUpload(event.target.result as string);
         }
       };
       reader.readAsDataURL(file);
@@ -76,7 +93,7 @@ export const WizardVisualView: React.FC<WizardVisualViewProps> = ({
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg');
-        onUpdatePhoto(dataUrl);
+        handlePhotoUpload(dataUrl);
         stopCamera();
       }
     }
@@ -89,6 +106,12 @@ export const WizardVisualView: React.FC<WizardVisualViewProps> = ({
       videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
+  };
+
+  const handlePresetSelect = (url: string) => {
+    onUpdatePhoto(url);
+    setUploadStatus('success');
+    setUploadError(null);
   };
 
   return (
@@ -204,6 +227,36 @@ export const WizardVisualView: React.FC<WizardVisualViewProps> = ({
             <p className="text-xs text-[#ba1a1a] text-center font-body-md">{cameraError}</p>
           )}
 
+          {/* Upload Status / Thumbnail Preview */}
+          {currentPhotoUrl && (
+            <div className="flex flex-col items-center justify-center bg-white p-4 rounded-xl border border-[#dcc0c0]/30 shadow-xs max-w-sm mx-auto space-y-3">
+              <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-[#dcc0c0]">
+                <img src={currentPhotoUrl} alt="Selected Memory" className="w-full h-full object-cover" />
+                {uploadStatus === 'uploading' && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-white text-3xl animate-spin">sync</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-[#564242]">
+                {uploadStatus === 'uploading' ? (
+                  <span className="text-[#6d1824] font-semibold animate-pulse">Uploading to vault...</span>
+                ) : uploadStatus === 'error' ? (
+                  <span className="text-[#ba1a1a] font-semibold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">error</span> Upload failed.
+                  </span>
+                ) : (
+                  <span className="text-[#14532D] font-semibold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">check_circle</span> Photo added successfully!
+                  </span>
+                )}
+              </div>
+              {uploadStatus === 'error' && uploadError && (
+                <p className="text-[11px] text-[#ba1a1a] text-center">{uploadError}</p>
+              )}
+            </div>
+          )}
+
           {/* Current Selected Photo & Presets */}
           <div className="mt-4 pt-4 border-t border-[#dcc0c0]/30 space-y-3">
             <p className="text-xs font-bold font-label-caps text-[#A5A58D] uppercase tracking-wider text-center">
@@ -213,7 +266,7 @@ export const WizardVisualView: React.FC<WizardVisualViewProps> = ({
               {PRESET_PHOTOS.map((preset, idx) => (
                 <button
                   key={idx}
-                  onClick={() => onUpdatePhoto(preset.url)}
+                  onClick={() => handlePresetSelect(preset.url)}
                   className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
                     currentPhotoUrl === preset.url
                       ? 'border-[#6d1824] ring-2 ring-[#FFB7B2]'
@@ -243,7 +296,8 @@ export const WizardVisualView: React.FC<WizardVisualViewProps> = ({
 
         <button
           onClick={onNext}
-          className="flex items-center gap-2 px-8 py-3 bg-[#6d1824] text-white rounded-full font-label-caps text-xs tracking-wider shadow-md hover:bg-[#5E1E24] transition-all active:scale-95 cursor-pointer"
+          disabled={uploadStatus === 'uploading'}
+          className="flex items-center gap-2 px-8 py-3 bg-[#6d1824] text-white rounded-full font-label-caps text-xs tracking-wider shadow-md hover:bg-[#5E1E24] transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next to Canvas
           <span className="material-symbols-outlined">chevron_right</span>

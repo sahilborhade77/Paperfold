@@ -127,6 +127,12 @@ export const WizardSendView: React.FC<WizardSendViewProps> = ({
                       ? 'font-script text-2xl'
                       : cardData.fontStyle === 'handwritten'
                       ? 'font-handwritten-note'
+                      : cardData.fontStyle === 'elegant'
+                      ? 'font-elegant text-xl'
+                      : cardData.fontStyle === 'playful'
+                      ? 'font-playful text-2xl'
+                      : cardData.fontStyle === 'sans'
+                      ? 'font-sans text-sm'
                       : 'font-body-md'
                   }`}
                 >
@@ -139,6 +145,12 @@ export const WizardSendView: React.FC<WizardSendViewProps> = ({
                       ? 'font-script text-base'
                       : cardData.fontStyle === 'handwritten'
                       ? 'font-handwritten-note text-sm'
+                      : cardData.fontStyle === 'elegant'
+                      ? 'font-elegant text-sm'
+                      : cardData.fontStyle === 'playful'
+                      ? 'font-playful text-base'
+                      : cardData.fontStyle === 'sans'
+                      ? 'font-sans text-xs'
                       : 'font-body-md'
                   }`}
                 >

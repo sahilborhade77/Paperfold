@@ -5,6 +5,8 @@ export interface Song {
   duration: string;
   coverUrl: string;
   audioUrl?: string;
+  songType?: 'upload' | 'youtube';
+  youtubeVideoId?: string;
 }
 
 export type Occasion = 'Birthday' | 'Apology' | 'Asking Out' | 'Anniversary' | 'General';
@@ -43,7 +45,7 @@ export interface CardData {
   location: string;
   song: Song;
   inkColor: string;
-  fontStyle: 'serif' | 'handwritten' | 'script';
+  fontStyle: 'serif' | 'handwritten' | 'script' | 'elegant' | 'playful' | 'sans';
   stickers: StickerItem[];
   createdAt: string;
   expiresInDays: number;

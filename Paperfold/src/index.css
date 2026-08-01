@@ -33,6 +33,18 @@
   font-family: 'Dancing Script', cursive;
 }
 
+.font-elegant {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-playful {
+  font-family: 'Caveat', cursive;
+}
+
+.font-sans {
+  font-family: 'Outfit', sans-serif;
+}
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   display: inline-block;

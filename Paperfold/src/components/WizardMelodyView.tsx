@@ -1,6 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Song } from '../types';
-import { SAMPLE_SONGS } from '../data';
+import { cardService } from '../services/cardService';
+
+interface YouTubeResult {
+  videoId: string;
+  title: string;
+  channelTitle: string;
+  thumbnailUrl: string;
+}
 
 interface WizardMelodyViewProps {
   currentSong: Song;
@@ -17,14 +24,56 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'search' | 'upload'>('search');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentPreviewVideoId, setCurrentPreviewVideoId] = useState<string | null>(
+    currentSong.songType === 'youtube' ? currentSong.youtubeVideoId || null : null
+  );
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
+  const searchDebounce = useRef<number | null>(null);
 
-  const filteredSongs = SAMPLE_SONGS.filter((s) =>
-    s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.artist.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setSearchError(null);
+      return;
+    }
+
+    if (searchDebounce.current) {
+      window.clearTimeout(searchDebounce.current);
+    }
+
+    searchDebounce.current = window.setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError(null);
+
+      try {
+        const response = await fetch(`/api/youtube-search?query=${encodeURIComponent(searchQuery)}`);
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(data?.error || 'YouTube search failed');
+        }
+        const data = await response.json();
+        setSearchResults(data.items ?? []);
+      } catch (error) {
+        console.error(error);
+        setSearchError(error instanceof Error ? error.message : 'Search failed');
+      } finally {
+        setIsSearching(false);
+      }
+    }, 450);
+
+    return () => {
+      if (searchDebounce.current) {
+        window.clearTimeout(searchDebounce.current);
+      }
+    };
+  }, [searchQuery]);
 
   const togglePlayPreview = () => {
     if (!audioRef.current) return;
@@ -36,20 +85,32 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
     }
   };
 
-  const handleAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAudioFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      const customSong: Song = {
-        id: `custom-${Date.now()}`,
-        title: file.name.replace(/\.[^/.]+$/, ""),
-        artist: 'Custom Recording',
-        duration: 'Custom',
-        coverUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCRHFzEa21WAv9_4Qp_f2I0o0soOKQexMtHmQT8G8xX92OsWC7-T6I_-VnMIcQCgJwkqP1HwEQlfVfoCm4mfRvjfAh9TqL5ElndVtC_uZPE5GLEBkxE-8WZq87tPMZADAjIDB2Ln74bbKKjHiLhY63LSIt_KaploiNtJ9lscS70LIhvqHjBkzuFpp-82qO1LO9I7qGP0n_rqeXB5AWp7aaAdJO2PoW-dU-I6PmQSUdgvW2FUyVQXxQs',
-        audioUrl: url,
-      };
-      onSelectSong(customSong);
-      setIsPlaying(false);
+      setUploadStatus('uploading');
+      setUploadError(null);
+      const tempUrl = URL.createObjectURL(file);
+      try {
+        const uploadedUrl = await cardService.uploadMusic(tempUrl);
+        const customSong: Song = {
+          id: `custom-${Date.now()}`,
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          artist: 'Custom Recording',
+          duration: 'Custom',
+          coverUrl:
+            'https://lh3.googleusercontent.com/aida-public/AB6AXuCRHFzEa21WAv9_4Qp_f2I0o0soOKQexMtHmQT8G8xX92OsWC7-T6I_-VnMIcQCgJwkqP1HwEQlfVfoCm4mfRvjfAh9TqL5ElndVtC_uZPE5GLEBkxE-8WZq87tPMZADAjIDB2Ln74bbKKjHiLhY63LSIt_KaploiNtJ9lscS70LIhvqHjBkzuFpp-82qO1LO9I7qGP0n_rqeXB5AWp7aaAdJO2PoW-dU-I6PmQSUdgvW2FUyVQXxQs',
+          audioUrl: uploadedUrl,
+          songType: 'upload',
+        };
+        onSelectSong(customSong);
+        setUploadStatus('success');
+        setIsPlaying(false);
+      } catch (err) {
+        console.error(err);
+        setUploadStatus('error');
+        setUploadError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      }
     }
   };
 
@@ -136,58 +197,107 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
               />
             </div>
 
-            {/* Song Catalog List */}
-            <div className="divide-y divide-[#dcc0c0]/30 max-h-[320px] overflow-y-auto pr-1">
-              {filteredSongs.map((song) => {
-                const isSelected = currentSong.id === song.id;
-                return (
-                  <div
-                    key={song.id}
-                    onClick={() => {
-                      onSelectSong(song);
-                      setIsPlaying(false);
-                    }}
-                    className={`p-3 flex items-center justify-between rounded-xl transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#FFB7B2]/30 border-l-4 border-[#6d1824]'
-                        : 'hover:bg-[#f1ede8]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-black/10 shrink-0 relative">
-                        <img
-                          src={song.coverUrl}
-                          alt={song.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div>
-                        <p className="font-bold font-headline-md text-sm text-[#3D3D3D]">
-                          {song.title}
-                        </p>
-                        <p className="text-xs font-body-md text-[#564242]">{song.artist}</p>
-                      </div>
-                    </div>
+            <div className="space-y-3">
+              {isSearching && (
+                <div className="text-center text-xs text-[#564242]">
+                  Searching YouTube for “{searchQuery}”...
+                </div>
+              )}
+              {searchError && (
+                <div className="text-center text-xs text-[#ba1a1a]">
+                  {searchError}
+                </div>
+              )}
+              {!isSearching && !searchError && searchQuery.trim() && searchResults.length === 0 && (
+                <div className="text-center text-xs text-[#564242]">
+                  No results found. Try a different song, artist, or mood.
+                </div>
+              )}
 
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-label-caps text-[#A5A58D]">
-                        {song.duration}
-                      </span>
-                      <div
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                          isSelected ? 'border-[#6d1824] bg-[#6d1824]' : 'border-[#dcc0c0]'
-                        }`}
-                      >
-                        {isSelected && <span className="text-white text-xs">✓</span>}
+              <div className="divide-y divide-[#dcc0c0]/30 max-h-[320px] overflow-y-auto pr-1">
+                {searchResults.map((result) => {
+                  const isSelected =
+                    currentSong.songType === 'youtube' &&
+                    currentSong.youtubeVideoId === result.videoId;
+
+                  return (
+                    <div
+                      key={result.videoId}
+                      onClick={() => {
+                        onSelectSong({
+                          id: result.videoId,
+                          title: result.title,
+                          artist: result.channelTitle,
+                          duration: 'Video',
+                          coverUrl: result.thumbnailUrl,
+                          audioUrl: '',
+                          songType: 'youtube',
+                          youtubeVideoId: result.videoId,
+                        });
+                        setCurrentPreviewVideoId(result.videoId);
+                        setIsPlaying(false);
+                      }}
+                      className={`p-3 flex items-center justify-between rounded-xl transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#FFB7B2]/30 border-l-4 border-[#6d1824]'
+                          : 'hover:bg-[#f1ede8]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-12 rounded-lg overflow-hidden bg-black/10 shrink-0 relative">
+                          <img
+                            src={result.thumbnailUrl}
+                            alt={result.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold font-headline-md text-sm text-[#3D3D3D] truncate">
+                            {result.title}
+                          </p>
+                          <p className="text-[11px] font-body-md text-[#564242] truncate">
+                            {result.channelTitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-label-caps text-[#A5A58D]">
+                          Video
+                        </span>
+                        <div
+                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                            isSelected ? 'border-[#6d1824] bg-[#6d1824]' : 'border-[#dcc0c0]'
+                          }`}
+                        >
+                          {isSelected && <span className="text-white text-xs">✓</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
+
+            {currentPreviewVideoId && (
+              <div className="mt-4">
+                <p className="text-xs font-label-caps text-[#A5A58D] uppercase tracking-wider mb-2">
+                  YouTube Preview
+                </p>
+                <div className="aspect-video rounded-3xl overflow-hidden border border-[#dcc0c0]">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${currentPreviewVideoId}`}
+                    title="YouTube preview"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="py-8 flex flex-col items-center justify-center border-2 border-dashed border-[#897272] rounded-xl bg-[#f7f3ee]">
+          <div className="py-8 flex flex-col items-center justify-center border-2 border-dashed border-[#897272] rounded-xl bg-[#f7f3ee] relative min-h-[260px]">
             <input
               type="file"
               ref={audioFileInputRef}
@@ -195,24 +305,46 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
               onChange={handleAudioFileUpload}
               className="hidden"
             />
-            <span className="material-symbols-outlined text-5xl text-[#A5A58D] mb-3">
-              upload_file
-            </span>
-            <p className="text-lg font-bold font-headline-md text-[#3D3D3D]">
-              Select music from your computer
-            </p>
-            <p className="text-xs font-label-caps text-[#564242] mt-1 mb-2">
-              Browse to your music folder, such as <span className="font-semibold">E:\music</span>, then choose an audio file.
-            </p>
-            <p className="text-xs font-label-caps text-[#564242] mb-4">
-              MP3, WAV, AAC, M4A up to 25MB
-            </p>
-            <button
-              onClick={() => audioFileInputRef.current?.click()}
-              className="px-6 py-2 bg-[#6d1824] text-white rounded-full font-label-caps text-xs tracking-wider"
-            >
-              Choose Local Audio
-            </button>
+            {uploadStatus === 'uploading' ? (
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <span className="material-symbols-outlined text-5xl text-[#6d1824] animate-spin">sync</span>
+                <p className="text-sm font-bold text-[#6d1824] animate-pulse">Uploading melody to vault...</p>
+              </div>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-5xl text-[#A5A58D] mb-3">
+                  upload_file
+                </span>
+                <p className="text-lg font-bold font-headline-md text-[#3D3D3D]">
+                  Select music from your computer
+                </p>
+                <p className="text-xs font-label-caps text-[#564242] mt-1 mb-2">
+                  Browse to your music folder, such as <span className="font-semibold">E:\music</span>, then choose an audio file.
+                </p>
+                <p className="text-xs font-label-caps text-[#564242] mb-4">
+                  MP3, WAV, AAC, M4A up to 25MB
+                </p>
+                <button
+                  onClick={() => audioFileInputRef.current?.click()}
+                  className="px-6 py-2 bg-[#6d1824] text-white rounded-full font-label-caps text-xs tracking-wider cursor-pointer"
+                >
+                  Choose Local Audio
+                </button>
+                {uploadStatus === 'success' && (
+                  <div className="mt-4 flex items-center gap-1.5 text-xs text-[#14532D] font-semibold">
+                    <span className="material-symbols-outlined text-sm">check_circle</span> Melody added successfully!
+                  </div>
+                )}
+                {uploadStatus === 'error' && (
+                  <div className="mt-4 flex flex-col items-center">
+                    <div className="flex items-center gap-1.5 text-xs text-[#ba1a1a] font-semibold">
+                      <span className="material-symbols-outlined text-sm">error</span> Upload failed.
+                    </div>
+                    {uploadError && <p className="text-[11px] text-[#ba1a1a] mt-1">{uploadError}</p>}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -229,7 +361,7 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
             <div className="w-3 h-3 bg-white rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
           </div>
           <div>
-            <span className="text-[10px] font-bold font-label-caps text-[#A5A58D] uppercase tracking-wider">
+            <span className="text-[10px] font-bold font-label-caps text-[#A5A58D] uppercase tracking-wider block">
               Currently Selected
             </span>
             <h4 className="font-bold font-headline-md text-[#5E1E24] text-base">
@@ -241,14 +373,17 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
 
         {/* Audio Element & Controls */}
         <div className="flex items-center gap-3">
-          <audio
-            ref={audioRef}
-            src={currentSong.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3'}
-            onEnded={() => setIsPlaying(false)}
-          />
+          {currentSong.audioUrl && (
+            <audio
+              ref={audioRef}
+              src={currentSong.audioUrl}
+              onEnded={() => setIsPlaying(false)}
+            />
+          )}
           <button
             onClick={togglePlayPreview}
-            className="w-10 h-10 rounded-full bg-[#6d1824] text-white flex items-center justify-center shadow-md hover:bg-[#5E1E24] transition-transform active:scale-90 cursor-pointer"
+            disabled={!currentSong.audioUrl && currentSong.songType !== 'youtube'}
+            className="w-10 h-10 rounded-full bg-[#6d1824] text-white flex items-center justify-center shadow-md hover:bg-[#5E1E24] transition-transform active:scale-90 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             title={isPlaying ? 'Pause' : 'Play Preview'}
           >
             <span className="material-symbols-outlined">
@@ -270,7 +405,8 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
 
         <button
           onClick={onNext}
-          className="flex items-center gap-2 px-8 py-3 bg-[#6d1824] text-white rounded-full font-label-caps text-xs tracking-wider shadow-md hover:bg-[#5E1E24] transition-all active:scale-95 cursor-pointer"
+          disabled={uploadStatus === 'uploading'}
+          className="flex items-center gap-2 px-8 py-3 bg-[#6d1824] text-white rounded-full font-label-caps text-xs tracking-wider shadow-md hover:bg-[#5E1E24] transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next: Finishing Touch
           <span className="material-symbols-outlined">chevron_right</span>

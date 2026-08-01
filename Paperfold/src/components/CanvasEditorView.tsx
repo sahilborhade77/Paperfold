@@ -53,60 +53,82 @@ export const CanvasEditorView: React.FC<CanvasEditorViewProps> = ({
 
         {/* Toolbar Controls */}
         <div className="flex flex-wrap items-center gap-2 bg-white/80 backdrop-blur-xs p-2 rounded-2xl shadow-xs border border-[#dcc0c0]/30">
+
+
           {/* Font Picker */}
-          <div className="flex items-center bg-[#f7f3ee] rounded-xl p-1 gap-1">
+          <div className="flex flex-wrap items-center bg-[#f7f3ee] rounded-xl p-1 gap-1">
             <button
               onClick={() => onUpdateCard({ fontStyle: 'serif' })}
-              className={`px-3 py-1 rounded-lg text-xs font-body-md ${
-                cardData.fontStyle === 'serif' ? 'bg-[#5E1E24] text-white' : 'text-[#564242]'
+              className={`px-3 py-1 rounded-lg text-xs font-body-md cursor-pointer ${
+                cardData.fontStyle === 'serif' ? 'bg-[#5E1E24] text-white font-bold' : 'text-[#564242]'
               }`}
             >
               Serif
             </button>
             <button
               onClick={() => onUpdateCard({ fontStyle: 'handwritten' })}
-              className={`px-3 py-1 rounded-lg text-xs font-handwritten-note ${
-                cardData.fontStyle === 'handwritten' ? 'bg-[#5E1E24] text-white' : 'text-[#564242]'
+              className={`px-3 py-1 rounded-lg text-xs font-handwritten-note cursor-pointer ${
+                cardData.fontStyle === 'handwritten' ? 'bg-[#5E1E24] text-white font-bold' : 'text-[#564242]'
               }`}
             >
               Hand
             </button>
             <button
               onClick={() => onUpdateCard({ fontStyle: 'script' })}
-              className={`px-3 py-1 rounded-lg text-xs font-script ${
-                cardData.fontStyle === 'script' ? 'bg-[#5E1E24] text-white' : 'text-[#564242]'
+              className={`px-3 py-1 rounded-lg text-xs font-script cursor-pointer ${
+                cardData.fontStyle === 'script' ? 'bg-[#5E1E24] text-white font-bold' : 'text-[#564242]'
               }`}
             >
               Script
             </button>
+            <button
+              onClick={() => onUpdateCard({ fontStyle: 'elegant' })}
+              className={`px-3 py-1 rounded-lg text-xs font-elegant cursor-pointer ${
+                cardData.fontStyle === 'elegant' ? 'bg-[#5E1E24] text-white font-bold' : 'text-[#564242]'
+              }`}
+            >
+              Elegant
+            </button>
+            <button
+              onClick={() => onUpdateCard({ fontStyle: 'playful' })}
+              className={`px-3 py-1 rounded-lg text-xs font-playful cursor-pointer ${
+                cardData.fontStyle === 'playful' ? 'bg-[#5E1E24] text-white font-bold' : 'text-[#564242]'
+              }`}
+            >
+              Playful
+            </button>
+            <button
+              onClick={() => onUpdateCard({ fontStyle: 'sans' })}
+              className={`px-3 py-1 rounded-lg text-xs font-sans cursor-pointer ${
+                cardData.fontStyle === 'sans' ? 'bg-[#5E1E24] text-white font-bold' : 'text-[#564242]'
+              }`}
+            >
+              Sans
+            </button>
           </div>
 
           {/* Ink Color Picker */}
-          <div className="flex items-center gap-1 px-2 border-l border-[#dcc0c0]/40">
-            <button
-              onClick={() => onUpdateCard({ inkColor: '#5E1E24' })}
-              className={`w-6 h-6 rounded-full border-2 ${
-                cardData.inkColor === '#5E1E24' ? 'border-black scale-110' : 'border-transparent'
-              }`}
-              style={{ backgroundColor: '#5E1E24' }}
-              title="Berry Ink"
-            />
-            <button
-              onClick={() => onUpdateCard({ inkColor: '#3D3D3D' })}
-              className={`w-6 h-6 rounded-full border-2 ${
-                cardData.inkColor === '#3D3D3D' ? 'border-black scale-110' : 'border-transparent'
-              }`}
-              style={{ backgroundColor: '#3D3D3D' }}
-              title="Vintage Ink"
-            />
-            <button
-              onClick={() => onUpdateCard({ inkColor: '#5c614d' })}
-              className={`w-6 h-6 rounded-full border-2 ${
-                cardData.inkColor === '#5c614d' ? 'border-black scale-110' : 'border-transparent'
-              }`}
-              style={{ backgroundColor: '#5c614d' }}
-              title="Sage Ink"
-            />
+          <div className="flex flex-wrap items-center gap-1 px-2 border-l border-[#dcc0c0]/40">
+            {[
+              { value: '#5E1E24', name: 'Berry Ink' },
+              { value: '#3D3D3D', name: 'Vintage Charcoal' },
+              { value: '#5c614d', name: 'Sage Leaf' },
+              { value: '#1F3A52', name: 'Deep Navy' },
+              { value: '#4E2A5E', name: 'Plum Dusk' },
+              { value: '#805A36', name: 'Warm Sepia' },
+              { value: '#B57C1E', name: 'Ochre Gold' },
+              { value: '#14532D', name: 'Forest Pine' },
+            ].map((color) => (
+              <button
+                key={color.value}
+                onClick={() => onUpdateCard({ inkColor: color.value })}
+                className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 ${
+                  cardData.inkColor === color.value ? 'border-black scale-110' : 'border-transparent'
+                }`}
+                style={{ backgroundColor: color.value }}
+                title={color.name}
+              />
+            ))}
           </div>
 
           {/* AI Helper */}
@@ -220,6 +242,12 @@ export const CanvasEditorView: React.FC<CanvasEditorViewProps> = ({
                 ? 'font-script text-3xl'
                 : cardData.fontStyle === 'handwritten'
                 ? 'font-handwritten-note'
+                : cardData.fontStyle === 'elegant'
+                ? 'font-elegant text-2xl'
+                : cardData.fontStyle === 'playful'
+                ? 'font-playful text-3xl'
+                : cardData.fontStyle === 'sans'
+                ? 'font-sans text-lg'
                 : 'font-body-md'
             }`}
           />
@@ -236,6 +264,12 @@ export const CanvasEditorView: React.FC<CanvasEditorViewProps> = ({
                 ? 'font-script text-2xl'
                 : cardData.fontStyle === 'handwritten'
                 ? 'font-handwritten-note text-xl'
+                : cardData.fontStyle === 'elegant'
+                ? 'font-elegant text-xl'
+                : cardData.fontStyle === 'playful'
+                ? 'font-playful text-2xl'
+                : cardData.fontStyle === 'sans'
+                ? 'font-sans text-base'
                 : 'font-body-md text-base'
             }`}
           />
@@ -254,6 +288,12 @@ export const CanvasEditorView: React.FC<CanvasEditorViewProps> = ({
                   ? 'font-script text-2xl'
                   : cardData.fontStyle === 'handwritten'
                   ? 'font-handwritten-note text-xl'
+                  : cardData.fontStyle === 'elegant'
+                  ? 'font-elegant text-xl'
+                  : cardData.fontStyle === 'playful'
+                  ? 'font-playful text-2xl'
+                  : cardData.fontStyle === 'sans'
+                  ? 'font-sans text-base'
                   : 'font-body-md text-base'
               }`}
             />
