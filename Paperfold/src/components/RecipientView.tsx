@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CardData } from '../types';
+import { createYouTubePlayer } from '../lib/player';
 
 interface RecipientViewProps {
   cardData: CardData;
@@ -18,9 +19,47 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   const [showExpiryPill, setShowExpiryPill] = useState(true);
   const [isOpened, setIsOpened] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const youTubeContainerRef = useRef<HTMLDivElement | null>(null);
+  const youTubePlayerRef = useRef<any>(null);
   const isYouTubeSong =
     cardData.song.songType === 'youtube' && Boolean(cardData.song.youtubeVideoId);
   const hasMelody = isYouTubeSong || Boolean(cardData.song.audioUrl);
+
+  useEffect(() => {
+    if (!isOpened || !isYouTubeSong || !youTubeContainerRef.current) {
+      if (youTubePlayerRef.current) {
+        youTubePlayerRef.current.destroy?.();
+        youTubePlayerRef.current = null;
+      }
+      return;
+    }
+
+    let mounted = true;
+    createYouTubePlayer(youTubeContainerRef.current, cardData.song.youtubeVideoId!, (state) => {
+      if (!mounted) return;
+      const YT = (window as any).YT;
+      if (state === YT?.PlayerState.PLAYING) {
+        setIsPlaying(true);
+      } else if (state === YT?.PlayerState.PAUSED || state === YT?.PlayerState.ENDED) {
+        setIsPlaying(false);
+      }
+    })
+      .then((player) => {
+        if (!mounted) return;
+        youTubePlayerRef.current = player;
+      })
+      .catch((err) => {
+        console.error('Failed to create YouTube player:', err);
+      });
+
+    return () => {
+      mounted = false;
+      if (youTubePlayerRef.current) {
+        youTubePlayerRef.current.destroy?.();
+        youTubePlayerRef.current = null;
+      }
+    };
+  }, [isOpened, isYouTubeSong, cardData.song.youtubeVideoId]);
 
   useEffect(() => {
     // Hide expiry pill after 5 seconds
@@ -51,7 +90,21 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   };
 
   const toggleAudio = () => {
-    if (isYouTubeSong || !audioRef.current) return;
+    if (isYouTubeSong) {
+      if (!youTubePlayerRef.current) return;
+      const playerState = youTubePlayerRef.current.getPlayerState?.();
+      const YT = (window as any).YT;
+      if (playerState === YT?.PlayerState.PLAYING) {
+        youTubePlayerRef.current.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        youTubePlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -113,6 +166,13 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
           ref={audioRef}
           src={cardData.song.audioUrl}
           loop
+        />
+      )}
+      {isYouTubeSong && (
+        <div
+          ref={youTubeContainerRef}
+          className="w-0 h-0 overflow-hidden opacity-0 pointer-events-none"
+          aria-hidden="true"
         />
       )}
 

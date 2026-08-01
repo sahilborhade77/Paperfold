@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Song } from '../types';
 import { cardService } from '../services/cardService';
+import { createYouTubePlayer } from '../lib/player';
 
 interface YouTubeResult {
   videoId: string;
@@ -34,8 +35,11 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const youtubePlayerContainerRef = useRef<HTMLDivElement | null>(null);
+  const youtubePlayerRef = useRef<any>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
   const searchDebounce = useRef<number | null>(null);
+  const isYouTubeSong = currentSong.songType === 'youtube' && Boolean(currentSong.youtubeVideoId);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -75,7 +79,83 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
     };
   }, [searchQuery]);
 
+  useEffect(() => {
+    if (currentSong.songType === 'youtube') {
+      setCurrentPreviewVideoId(currentSong.youtubeVideoId || null);
+    } else {
+      setCurrentPreviewVideoId(null);
+    }
+    setIsPlaying(false);
+  }, [currentSong.songType, currentSong.youtubeVideoId]);
+
+  useEffect(() => {
+    if (!isYouTubeSong || !currentPreviewVideoId || !youtubePlayerContainerRef.current) {
+      if (youtubePlayerRef.current) {
+        youtubePlayerRef.current.destroy?.();
+        youtubePlayerRef.current = null;
+      }
+      return;
+    }
+
+    let mounted = true;
+    const setupPlayer = async () => {
+      try {
+        if (youtubePlayerRef.current) {
+          youtubePlayerRef.current.loadVideoById(currentPreviewVideoId);
+          return;
+        }
+
+        const player = await createYouTubePlayer(
+          youtubePlayerContainerRef.current!,
+          currentPreviewVideoId,
+          (state) => {
+            if (!mounted) return;
+            const YT = (window as any).YT;
+            if (state === YT?.PlayerState.PLAYING) {
+              setIsPlaying(true);
+            } else if (state === YT?.PlayerState.PAUSED || state === YT?.PlayerState.ENDED) {
+              setIsPlaying(false);
+            }
+          }
+        );
+
+        if (!mounted) {
+          player.destroy?.();
+          return;
+        }
+
+        youtubePlayerRef.current = player;
+      } catch (err) {
+        console.error('Failed to create YouTube player:', err);
+      }
+    };
+
+    setupPlayer();
+
+    return () => {
+      mounted = false;
+      if (youtubePlayerRef.current) {
+        youtubePlayerRef.current.destroy?.();
+        youtubePlayerRef.current = null;
+      }
+    };
+  }, [isYouTubeSong, currentPreviewVideoId]);
+
   const togglePlayPreview = () => {
+    if (isYouTubeSong) {
+      if (!youtubePlayerRef.current) return;
+      const playerState = youtubePlayerRef.current.getPlayerState?.();
+      const YT = (window as any).YT;
+      if (playerState === YT?.PlayerState.PLAYING) {
+        youtubePlayerRef.current.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        youtubePlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
@@ -285,13 +365,7 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
                   YouTube Preview
                 </p>
                 <div className="aspect-video rounded-3xl overflow-hidden border border-[#dcc0c0]">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${currentPreviewVideoId}`}
-                    title="YouTube preview"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="w-full h-full"
-                  />
+                  <div ref={youtubePlayerContainerRef} className="w-full h-full bg-black" />
                 </div>
               </div>
             )}
