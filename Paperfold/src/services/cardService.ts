@@ -4,12 +4,17 @@ import { CardData, Song } from '../types';
 /**
  * Promise wrapper to add a timeout to any promise
  */
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 20000): Promise<T> {
+function withTimeout<T>(
+  promise:
+    | PromiseLike<T>
+    | { then: (onfulfilled?: (value: T) => any, onrejected?: (reason: any) => any) => any },
+  timeoutMs: number = 20000
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error('Request timed out after 20 seconds. Please check your connection.'));
     }, timeoutMs);
-    promise.then(
+    Promise.resolve(promise).then(
       (res) => {
         clearTimeout(timer);
         resolve(res);
@@ -174,7 +179,10 @@ export const cardService = {
       .select('id')
       .single();
 
-    const { data, error } = await withTimeout(insertPromise);
+    const { data, error } = await withTimeout<{
+      data: { id: string } | null;
+      error: unknown;
+    }>(insertPromise as unknown as Promise<any>);
 
     if (error) {
       console.error('Error inserting card to database:', error);

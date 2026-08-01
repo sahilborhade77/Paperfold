@@ -32,6 +32,7 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
   const [currentPreviewVideoId, setCurrentPreviewVideoId] = useState<string | null>(
     currentSong.songType === 'youtube' ? currentSong.youtubeVideoId || null : null
   );
+  const [shouldAutoPlayPreview, setShouldAutoPlayPreview] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -102,6 +103,11 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
       try {
         if (youtubePlayerRef.current) {
           youtubePlayerRef.current.loadVideoById(currentPreviewVideoId);
+          if (shouldAutoPlayPreview) {
+            youtubePlayerRef.current.playVideo();
+            setIsPlaying(true);
+            setShouldAutoPlayPreview(false);
+          }
           return;
         }
 
@@ -116,6 +122,17 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
             } else if (state === YT?.PlayerState.PAUSED || state === YT?.PlayerState.ENDED) {
               setIsPlaying(false);
             }
+          },
+          (player) => {
+            if (!mounted) return;
+            if (shouldAutoPlayPreview) {
+              player.playVideo();
+              setIsPlaying(true);
+              setShouldAutoPlayPreview(false);
+            }
+          },
+          {
+            autoplay: shouldAutoPlayPreview ? 1 : 0,
           }
         );
 
@@ -139,7 +156,33 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
         youtubePlayerRef.current = null;
       }
     };
-  }, [isYouTubeSong, currentPreviewVideoId]);
+  }, [isYouTubeSong, currentPreviewVideoId, shouldAutoPlayPreview]);
+
+  useEffect(() => {
+    if (!shouldAutoPlayPreview) return;
+
+    if (isYouTubeSong) {
+      if (youtubePlayerRef.current?.playVideo) {
+        youtubePlayerRef.current.playVideo();
+        setIsPlaying(true);
+        setShouldAutoPlayPreview(false);
+      }
+      return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setShouldAutoPlayPreview(false);
+        })
+        .catch((err) => {
+          console.warn('Audio autoplay failed:', err);
+          setShouldAutoPlayPreview(false);
+        });
+    }
+  }, [shouldAutoPlayPreview, isYouTubeSong]);
 
   const togglePlayPreview = () => {
     if (isYouTubeSong) {
@@ -153,6 +196,7 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
         youtubePlayerRef.current.playVideo();
         setIsPlaying(true);
       }
+      setShouldAutoPlayPreview(false);
       return;
     }
 
@@ -186,6 +230,7 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
         onSelectSong(customSong);
         setUploadStatus('success');
         setIsPlaying(false);
+        setShouldAutoPlayPreview(true);
       } catch (err) {
         console.error(err);
         setUploadStatus('error');
@@ -316,6 +361,7 @@ export const WizardMelodyView: React.FC<WizardMelodyViewProps> = ({
                         });
                         setCurrentPreviewVideoId(result.videoId);
                         setIsPlaying(false);
+                        setShouldAutoPlayPreview(true);
                       }}
                       className={`p-3 flex items-center justify-between rounded-xl transition-all cursor-pointer ${
                         isSelected

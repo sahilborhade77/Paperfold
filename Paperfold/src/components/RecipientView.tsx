@@ -18,6 +18,7 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   const [saved, setSaved] = useState(false);
   const [showExpiryPill, setShowExpiryPill] = useState(true);
   const [isOpened, setIsOpened] = useState(false);
+  const [shouldPlayOnOpen, setShouldPlayOnOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const youTubeContainerRef = useRef<HTMLDivElement | null>(null);
   const youTubePlayerRef = useRef<any>(null);
@@ -26,7 +27,7 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   const hasMelody = isYouTubeSong || Boolean(cardData.song.audioUrl);
 
   useEffect(() => {
-    if (!isOpened || !isYouTubeSong || !youTubeContainerRef.current) {
+    if (!isYouTubeSong || !youTubeContainerRef.current) {
       if (youTubePlayerRef.current) {
         youTubePlayerRef.current.destroy?.();
         youTubePlayerRef.current = null;
@@ -35,18 +36,35 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
     }
 
     let mounted = true;
-    createYouTubePlayer(youTubeContainerRef.current, cardData.song.youtubeVideoId!, (state) => {
-      if (!mounted) return;
-      const YT = (window as any).YT;
-      if (state === YT?.PlayerState.PLAYING) {
-        setIsPlaying(true);
-      } else if (state === YT?.PlayerState.PAUSED || state === YT?.PlayerState.ENDED) {
-        setIsPlaying(false);
+    createYouTubePlayer(
+      youTubeContainerRef.current,
+      cardData.song.youtubeVideoId!,
+      (state) => {
+        if (!mounted) return;
+        const YT = (window as any).YT;
+        if (state === YT?.PlayerState.PLAYING) {
+          setIsPlaying(true);
+        } else if (state === YT?.PlayerState.PAUSED || state === YT?.PlayerState.ENDED) {
+          setIsPlaying(false);
+        }
+      },
+      (player) => {
+        if (!mounted) return;
+        if (shouldPlayOnOpen) {
+          player.playVideo();
+          setIsPlaying(true);
+          setShouldPlayOnOpen(false);
+        }
       }
-    })
+    )
       .then((player) => {
         if (!mounted) return;
         youTubePlayerRef.current = player;
+        if (shouldPlayOnOpen) {
+          player.playVideo();
+          setIsPlaying(true);
+          setShouldPlayOnOpen(false);
+        }
       })
       .catch((err) => {
         console.error('Failed to create YouTube player:', err);
@@ -59,7 +77,7 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
         youTubePlayerRef.current = null;
       }
     };
-  }, [isOpened, isYouTubeSong, cardData.song.youtubeVideoId]);
+  }, [isOpened, isYouTubeSong, cardData.song.youtubeVideoId, shouldPlayOnOpen]);
 
   useEffect(() => {
     // Hide expiry pill after 5 seconds
@@ -73,6 +91,12 @@ export const RecipientView: React.FC<RecipientViewProps> = ({
   const handleOpen = () => {
     setIsOpened(true);
     if (isYouTubeSong) {
+      setShouldPlayOnOpen(true);
+      if (youTubePlayerRef.current?.playVideo) {
+        youTubePlayerRef.current.playVideo();
+        setIsPlaying(true);
+        setShouldPlayOnOpen(false);
+      }
       return;
     }
 
